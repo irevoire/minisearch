@@ -10,8 +10,8 @@ const DB_NAME: &str = "naive.db";
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct NaiveIndexer {
-    documents: HashMap<usize, String>,
-    words: HashMap<String, Vec<usize>>,
+    documents: HashMap<u32, Document>,
+    words: HashMap<String, Vec<u32>>,
 }
 
 impl NaiveIndexer {
@@ -27,13 +27,12 @@ impl NaiveIndexer {
     }
 
     fn add_document(&mut self, document: Document) {
-        self.documents.insert(document.id, document.text.clone());
-        tokenize(&document.text).for_each(|word| {
-            self.words
-                .entry(word.to_string())
-                .or_default()
-                .push(document.id)
-        })
+        let docid = document.docid();
+        for field in document.fields() {
+            tokenize(field)
+                .for_each(|word| self.words.entry(word.to_string()).or_default().push(docid))
+        }
+        self.documents.insert(docid, document);
     }
 }
 
@@ -57,15 +56,12 @@ impl Index for NaiveIndexer {
     fn get_documents(&self) -> Vec<Document> {
         self.documents
             .keys()
-            .map(|id| self.get_document(*id).expect("Corrupted database"))
+            .map(|id| self.get_document(*id).expect("Corrupted database").clone())
             .collect()
     }
 
-    fn get_document(&self, id: usize) -> Option<Document> {
-        self.documents.get(&id).map(|text| Document {
-            id,
-            text: text.to_string(),
-        })
+    fn get_document(&self, id: u32) -> Option<Document> {
+        self.documents.get(&id).cloned()
     }
 
     fn add_documents(&mut self, document: Vec<Document>) {
