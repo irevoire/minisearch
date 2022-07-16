@@ -107,7 +107,7 @@ async fn add_documents(
         Documents::Multiple(documents) => index.add_documents(documents),
     }
 
-    response::Json(json!({ "elapsed": now.elapsed() }))
+    response::Json(json!({ "elapsed": format!("{:?}", now.elapsed()) }))
 }
 
 #[derive(Deserialize)]
@@ -123,5 +123,5 @@ async fn search(
 
     let results = index.lock().await.search(query);
 
-    response::Json(json!({ "elapsed": now.elapsed(), "results": results }))
+    response::Json(json!({ "elapsed": format!("{:?}", now.elapsed()), "results": results[..3] }))
 }

@@ -23,7 +23,7 @@ impl NaiveIndexer {
             }
             Err(err) => panic!("{}", err),
         };
-        bincode::serialize_into(file, self).expect("Can't write on disk")
+        serde_json::to_writer(file, self).expect("Internal error, can't serialize document");
     }
 
     fn add_document(&mut self, document: Document) {
@@ -48,7 +48,7 @@ impl Default for NaiveIndexer {
             }
             Err(err) => panic!("{}", err),
         };
-        bincode::deserialize_from(file).expect("Corrupted database")
+        serde_json::from_reader(file).expect("Corrupted database")
     }
 }
 
