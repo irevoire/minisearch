@@ -1,6 +1,8 @@
+use std::time::Instant;
+
 use axum::{extract, response, routing::get, Router};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{json, Value};
 
 use crate::Indexer;
 
@@ -96,12 +98,16 @@ impl Document {
 async fn add_documents(
     extract::Extension(index): extract::Extension<Indexer>,
     extract::Json(documents): extract::Json<Documents>,
-) {
+) -> response::Json<Value> {
+    let now = Instant::now();
+
     let mut index = index.lock().await;
     match documents {
         Documents::One(document) => index.add_documents(vec![document]),
         Documents::Multiple(documents) => index.add_documents(documents),
     }
+
+    response::Json(json!({ "elapsed": now.elapsed() }))
 }
 
 #[derive(Deserialize)]
@@ -112,6 +118,10 @@ pub struct Query {
 async fn search(
     extract::Extension(index): extract::Extension<Indexer>,
     extract::Query(query): extract::Query<Query>,
-) -> response::Json<Vec<Document>> {
-    response::Json(index.lock().await.search(query))
+) -> response::Json<Value> {
+    let now = Instant::now();
+
+    let results = index.lock().await.search(query);
+
+    response::Json(json!({ "elapsed": now.elapsed(), "results": results }))
 }
