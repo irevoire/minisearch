@@ -7,8 +7,8 @@ pub async fn run(index: Indexer) {
     // our router
     let app = Router::new()
         .route("/", get(root))
-        .route("/document/:docid", get(get_document))
-        .route("/document", get(get_document_help).post(add_document))
+        .route("/documents/:docid", get(get_document))
+        .route("/documents", get(get_documents).post(add_documents))
         .route("/search", get(search))
         .layer(extract::Extension(index));
 
@@ -31,8 +31,17 @@ async fn get_document(
     response::Json(index.lock().await.get_document(docid))
 }
 
-async fn get_document_help() -> &'static str {
-    "Call `/document/:docid` or `/search`"
+async fn get_documents(
+    extract::Extension(index): extract::Extension<Indexer>,
+) -> response::Json<Vec<Document>> {
+    response::Json(index.lock().await.get_documents())
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum Documents {
+    One(Document),
+    Multiple(Vec<Document>),
 }
 
 #[derive(Serialize, Deserialize)]
@@ -41,11 +50,15 @@ pub struct Document {
     pub text: String,
 }
 
-async fn add_document(
+async fn add_documents(
     extract::Extension(index): extract::Extension<Indexer>,
-    extract::Json(document): extract::Json<Document>,
+    extract::Json(documents): extract::Json<Documents>,
 ) {
-    index.lock().await.add(document);
+    let mut index = index.lock().await;
+    match documents {
+        Documents::One(document) => index.add_document(document),
+        Documents::Multiple(documents) => index.add_documents(documents),
+    }
 }
 
 #[derive(Deserialize)]

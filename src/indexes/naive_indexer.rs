@@ -11,6 +11,13 @@ pub struct NaiveIndexer {
 }
 
 impl Index for NaiveIndexer {
+    fn get_documents(&self) -> Vec<Document> {
+        self.documents
+            .keys()
+            .map(|id| self.get_document(*id).expect("Corrupted database"))
+            .collect()
+    }
+
     fn get_document(&self, id: usize) -> Option<Document> {
         self.documents.get(&id).map(|text| Document {
             id,
@@ -18,7 +25,7 @@ impl Index for NaiveIndexer {
         })
     }
 
-    fn add(&mut self, document: Document) {
+    fn add_document(&mut self, document: Document) {
         self.documents.insert(document.id, document.text.clone());
         tokenize(&document.text).for_each(|word| {
             self.words
