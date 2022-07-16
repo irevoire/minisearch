@@ -1,16 +1,9 @@
-use std::sync::Arc;
-
 use axum::{extract, response, routing::get, Router};
 use serde::{Deserialize, Serialize};
-use tokio::sync::Mutex;
 
-use crate::Index as RawIndex;
+use crate::Indexer;
 
-type Index = Arc<Mutex<RawIndex>>;
-
-pub async fn run() {
-    let index = Index::default();
-
+pub async fn run(index: Indexer) {
     // our router
     let app = Router::new()
         .route("/", get(root))
@@ -32,7 +25,7 @@ async fn root() -> &'static str {
 }
 
 async fn get_document(
-    extract::Extension(index): extract::Extension<Index>,
+    extract::Extension(index): extract::Extension<Indexer>,
     extract::Path(docid): extract::Path<usize>,
 ) -> response::Json<Option<Document>> {
     response::Json(index.lock().await.get_document(docid))
@@ -49,7 +42,7 @@ pub struct Document {
 }
 
 async fn add_document(
-    extract::Extension(index): extract::Extension<Index>,
+    extract::Extension(index): extract::Extension<Indexer>,
     extract::Json(document): extract::Json<Document>,
 ) {
     index.lock().await.add(document);
@@ -61,7 +54,7 @@ pub struct Query {
 }
 
 async fn search(
-    extract::Extension(index): extract::Extension<Index>,
+    extract::Extension(index): extract::Extension<Indexer>,
     extract::Query(query): extract::Query<Query>,
 ) -> response::Json<Vec<Document>> {
     response::Json(index.lock().await.search(query))

@@ -2,25 +2,23 @@ use std::collections::HashMap;
 
 use crate::{tokenize, Document, Query};
 
+use super::Index;
+
 #[derive(Debug, Default)]
-pub struct Index {
+pub struct NaiveIndexer {
     documents: HashMap<usize, String>,
     words: HashMap<String, Vec<usize>>,
 }
 
-impl Index {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn get_document(&self, id: usize) -> Option<Document> {
+impl Index for NaiveIndexer {
+    fn get_document(&self, id: usize) -> Option<Document> {
         self.documents.get(&id).map(|text| Document {
             id,
             text: text.to_string(),
         })
     }
 
-    pub fn add(&mut self, document: Document) {
+    fn add(&mut self, document: Document) {
         self.documents.insert(document.id, document.text.clone());
         tokenize(&document.text).for_each(|word| {
             self.words
@@ -30,7 +28,7 @@ impl Index {
         })
     }
 
-    pub fn search(&self, query: Query) -> Vec<Document> {
+    fn search(&self, query: Query) -> Vec<Document> {
         let mut docids: Vec<_> = tokenize(&query.q)
             .filter_map(|word| self.words.get(&word))
             .flatten()
