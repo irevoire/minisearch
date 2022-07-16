@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::{Document, Query};
+use crate::{tokenize, Document, Query};
 
 #[derive(Debug, Default)]
 pub struct Index {
@@ -22,7 +22,7 @@ impl Index {
 
     pub fn add(&mut self, document: Document) {
         self.documents.insert(document.id, document.text.clone());
-        document.text.split_whitespace().for_each(|word| {
+        tokenize(&document.text).for_each(|word| {
             self.words
                 .entry(word.to_string())
                 .or_default()
@@ -31,10 +31,8 @@ impl Index {
     }
 
     pub fn search(&self, query: Query) -> Vec<Document> {
-        let mut docids: Vec<_> = query
-            .q
-            .split_whitespace()
-            .filter_map(|word| self.words.get(word))
+        let mut docids: Vec<_> = tokenize(&query.q)
+            .filter_map(|word| self.words.get(&word))
             .flatten()
             .collect();
 
