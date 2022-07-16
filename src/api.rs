@@ -21,7 +21,7 @@ pub async fn run(index: Indexer) {
 
 // which calls one of these handlers
 async fn root() -> &'static str {
-    "Call `/document` or `/search`"
+    "Call `/documents` or `/search`"
 }
 
 async fn get_document(
@@ -56,7 +56,7 @@ async fn add_documents(
 ) {
     let mut index = index.lock().await;
     match documents {
-        Documents::One(document) => index.add_document(document),
+        Documents::One(document) => index.add_documents(vec![document]),
         Documents::Multiple(documents) => index.add_documents(documents),
     }
 }
