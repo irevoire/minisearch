@@ -123,5 +123,7 @@ async fn search(
 
     let results = index.lock().await.search(query);
 
-    response::Json(json!({ "elapsed": format!("{:?}", now.elapsed()), "results": results[..3] }))
+    response::Json(
+        json!({ "elapsed": format!("{:?}", now.elapsed()), "results": results.into_iter().take(3).collect::<Vec<_>>() }),
+    )
 }

@@ -21,5 +21,8 @@ fn get_indexer() -> Indexer {
 
 #[tokio::main]
 async fn main() {
-    api::run(get_indexer()).await;
+    let index = get_indexer();
+    println!("Starting http server on `http://localhost:3000`");
+
+    api::run(index).await;
 }
