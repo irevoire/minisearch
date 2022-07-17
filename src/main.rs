@@ -13,6 +13,7 @@ use std::sync::Arc;
 use indexes::naive_indexer::NaiveIndexer;
 use tokio::sync::Mutex;
 
+type DocId = u32;
 type Indexer = Arc<Mutex<dyn Index>>;
 
 fn get_indexer() -> Indexer {

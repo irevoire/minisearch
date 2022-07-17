@@ -4,14 +4,19 @@ use axum::{extract, response, routing::get, Router};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
-use crate::Indexer;
+use crate::{DocId, Indexer};
 
 pub async fn run(index: Indexer) {
     // our router
     let app = Router::new()
         .route("/", get(root))
         .route("/documents/:docid", get(get_document))
-        .route("/documents", get(get_documents).post(add_documents))
+        .route(
+            "/documents",
+            get(get_documents)
+                .post(add_documents)
+                .delete(delete_documents),
+        )
         .route("/search", get(search))
         .layer(extract::Extension(index));
 
@@ -29,7 +34,7 @@ async fn root() -> &'static str {
 
 async fn get_document(
     extract::Extension(index): extract::Extension<Indexer>,
-    extract::Path(docid): extract::Path<u32>,
+    extract::Path(docid): extract::Path<DocId>,
 ) -> response::Json<Option<Document>> {
     response::Json(index.lock().await.get_document(docid))
 }
@@ -42,24 +47,24 @@ async fn get_documents(
 
 #[derive(Serialize, Deserialize)]
 #[serde(untagged)]
-pub enum Documents {
-    One(Document),
-    Multiple(Vec<Document>),
+pub enum OneOrMany<T> {
+    One(T),
+    Multiple(Vec<T>),
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Document(serde_json::Map<String, serde_json::Value>);
 
 impl Document {
-    pub fn docid(&self) -> u32 {
+    pub fn docid(&self) -> DocId {
         for (field, value) in self.0.iter() {
             if field.contains("id") {
                 return value
                     .as_u64()
-                    .map(|value| value as u32)
-                    .or_else(|| value.as_str().map(|s| s.parse::<u32>().ok()).flatten())
+                    .map(|value| value as DocId)
+                    .or_else(|| value.as_str().map(|s| s.parse::<DocId>().ok()).flatten())
                     .expect("Document id is supposed to be an integer")
-                    as u32;
+                    as DocId;
             }
         }
         panic!(
@@ -97,14 +102,29 @@ impl Document {
 
 async fn add_documents(
     extract::Extension(index): extract::Extension<Indexer>,
-    extract::Json(documents): extract::Json<Documents>,
+    extract::Json(documents): extract::Json<OneOrMany<Document>>,
 ) -> response::Json<Value> {
     let now = Instant::now();
 
     let mut index = index.lock().await;
     match documents {
-        Documents::One(document) => index.add_documents(vec![document]),
-        Documents::Multiple(documents) => index.add_documents(documents),
+        OneOrMany::One(document) => index.add_documents(vec![document]),
+        OneOrMany::Multiple(documents) => index.add_documents(documents),
+    }
+
+    response::Json(json!({ "elapsed": format!("{:?}", now.elapsed()) }))
+}
+
+async fn delete_documents(
+    extract::Extension(index): extract::Extension<Indexer>,
+    extract::Json(docids): extract::Json<OneOrMany<DocId>>,
+) -> response::Json<Value> {
+    let now = Instant::now();
+
+    let mut index = index.lock().await;
+    match docids {
+        OneOrMany::One(docid) => index.delete_documents(vec![docid]),
+        OneOrMany::Multiple(docids) => index.delete_documents(docids),
     }
 
     response::Json(json!({ "elapsed": format!("{:?}", now.elapsed()) }))

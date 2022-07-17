@@ -6,7 +6,7 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
-use crate::{tokenize, Document, Query};
+use crate::{tokenize, DocId, Document, Query};
 
 use super::Index;
 
@@ -20,8 +20,8 @@ pub struct NaiveIndexer {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Inner {
-    documents: HashMap<u32, Document>,
-    words: HashMap<String, Vec<u32>>,
+    documents: HashMap<DocId, Document>,
+    words: HashMap<String, Vec<DocId>>,
 }
 
 impl NaiveIndexer {
@@ -33,16 +33,40 @@ impl NaiveIndexer {
 
     fn add_document(&mut self, document: Document) {
         let docid = document.docid();
-        for field in document.fields() {
-            tokenize(field).for_each(|word| {
-                self.inner
-                    .words
-                    .entry(word.to_string())
-                    .or_default()
-                    .push(docid)
-            })
+
+        // first we delete the old version of the document
+        self.delete_document(docid);
+
+        let mut words: Vec<_> = document.fields().flat_map(tokenize).collect();
+        // if a word is present multiple times in the same field we only count it once
+        words.sort_unstable();
+        words.dedup();
+
+        for word in words {
+            self.inner
+                .words
+                .entry(word.to_string())
+                .or_default()
+                .push(docid)
         }
         self.inner.documents.insert(docid, document);
+    }
+
+    fn delete_document(&mut self, docid: DocId) {
+        if let Some(document) = self.inner.documents.remove(&docid) {
+            // we get all the words in a document and then extract get rids of our id for each of these words
+            let mut words: Vec<_> = document.fields().flat_map(tokenize).collect();
+            // if a word is present multiple times in the same field we only count it once
+            words.sort_unstable();
+            words.dedup();
+
+            words.into_iter().for_each(|word| {
+                self.inner
+                    .words
+                    .get_mut(&word)
+                    .map(|ids| ids.retain(|id| *id != docid));
+            });
+        }
     }
 }
 
@@ -63,7 +87,10 @@ impl Default for NaiveIndexer {
         };
         let inner = serde_json::from_reader(&mut file).expect("Corrupted database");
         let file = File::create(DB_NAME).expect("Can't write in database");
-        Self { inner, file }
+
+        let mut this = Self { inner, file };
+        this.persist();
+        this
     }
 }
 
@@ -76,7 +103,7 @@ impl Index for NaiveIndexer {
             .collect()
     }
 
-    fn get_document(&self, id: u32) -> Option<Document> {
+    fn get_document(&self, id: DocId) -> Option<Document> {
         self.inner.documents.get(&id).cloned()
     }
 
@@ -86,6 +113,13 @@ impl Index for NaiveIndexer {
             .for_each(|document| self.add_document(document));
 
         self.persist()
+    }
+
+    fn delete_documents(&mut self, docids: Vec<DocId>) {
+        for docid in docids {
+            self.delete_document(docid);
+        }
+        self.persist();
     }
 
     fn search(&self, query: Query) -> Vec<Document> {
