@@ -1,8 +1,10 @@
-pub(crate) mod naive_indexer;
+mod naive;
+
+pub use naive::Naive;
 
 use crate::{DocId, Document, Query};
 
-pub trait Index: Send + Sync {
+pub trait Index: Send + Sync + Default {
     /// Get all the documents in the index
     fn get_documents(&self) -> Vec<Document>;
 

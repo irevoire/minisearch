@@ -13,7 +13,7 @@ use super::Index;
 const DB_NAME: &str = "naive.db";
 
 #[derive(Debug)]
-pub struct NaiveIndexer {
+pub struct Naive {
     inner: Inner,
     file: File,
 }
@@ -24,7 +24,7 @@ struct Inner {
     words: HashMap<String, Vec<DocId>>,
 }
 
-impl NaiveIndexer {
+impl Naive {
     fn persist(&mut self) {
         self.file.seek(SeekFrom::Start(0)).unwrap();
         serde_json::to_writer(&mut self.file, &self.inner)
@@ -70,12 +70,12 @@ impl NaiveIndexer {
     }
 }
 
-impl Default for NaiveIndexer {
+impl Default for Naive {
     fn default() -> Self {
         let mut file = match File::open(DB_NAME) {
             Ok(file) => file,
             Err(err) if err.kind() == ErrorKind::NotFound => {
-                return NaiveIndexer {
+                return Naive {
                     inner: Inner {
                         documents: HashMap::new(),
                         words: HashMap::new(),
@@ -94,7 +94,7 @@ impl Default for NaiveIndexer {
     }
 }
 
-impl Index for NaiveIndexer {
+impl Index for Naive {
     fn get_documents(&self) -> Vec<Document> {
         self.inner
             .documents

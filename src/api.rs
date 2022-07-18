@@ -1,23 +1,28 @@
+use std::sync::Arc;
 use std::time::Instant;
 
 use axum::{extract, response, routing::get, Router};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use tokio::sync::Mutex;
 
-use crate::{DocId, Indexer};
+use crate::{DocId, Index as RawIndex};
 
-pub async fn run(index: Indexer) {
+type Index<I> = Arc<Mutex<I>>;
+
+pub async fn run<I: RawIndex + 'static>(index: I) {
+    let index = Arc::new(Mutex::new(index));
     // our router
     let app = Router::new()
         .route("/", get(root))
-        .route("/documents/:docid", get(get_document))
+        .route("/documents/:docid", get(get_document::<I>))
         .route(
             "/documents",
-            get(get_documents)
-                .post(add_documents)
-                .delete(delete_documents),
+            get(get_documents::<I>)
+                .post(add_documents::<I>)
+                .delete(delete_documents::<I>),
         )
-        .route("/search", get(search))
+        .route("/search", get(search::<I>))
         .layer(extract::Extension(index));
 
     // run it with hyper on localhost:3000
@@ -32,15 +37,15 @@ async fn root() -> &'static str {
     "Call `/documents` or `/search`"
 }
 
-async fn get_document(
-    extract::Extension(index): extract::Extension<Indexer>,
+async fn get_document<I: RawIndex>(
+    extract::Extension(index): extract::Extension<Index<I>>,
     extract::Path(docid): extract::Path<DocId>,
 ) -> response::Json<Option<Document>> {
     response::Json(index.lock().await.get_document(docid))
 }
 
-async fn get_documents(
-    extract::Extension(index): extract::Extension<Indexer>,
+async fn get_documents<I: RawIndex>(
+    extract::Extension(index): extract::Extension<Index<I>>,
 ) -> response::Json<Vec<Document>> {
     response::Json(index.lock().await.get_documents())
 }
@@ -100,8 +105,8 @@ impl Document {
     }
 }
 
-async fn add_documents(
-    extract::Extension(index): extract::Extension<Indexer>,
+async fn add_documents<I: RawIndex>(
+    extract::Extension(index): extract::Extension<Index<I>>,
     extract::Json(documents): extract::Json<OneOrMany<Document>>,
 ) -> response::Json<Value> {
     let now = Instant::now();
@@ -115,8 +120,8 @@ async fn add_documents(
     response::Json(json!({ "elapsed": format!("{:?}", now.elapsed()) }))
 }
 
-async fn delete_documents(
-    extract::Extension(index): extract::Extension<Indexer>,
+async fn delete_documents<I: RawIndex>(
+    extract::Extension(index): extract::Extension<Index<I>>,
     extract::Json(docids): extract::Json<OneOrMany<DocId>>,
 ) -> response::Json<Value> {
     let now = Instant::now();
@@ -135,8 +140,8 @@ pub struct Query {
     pub q: String,
 }
 
-async fn search(
-    extract::Extension(index): extract::Extension<Indexer>,
+async fn search<I: RawIndex>(
+    extract::Extension(index): extract::Extension<Index<I>>,
     extract::Query(query): extract::Query<Query>,
 ) -> response::Json<Value> {
     let now = Instant::now();
