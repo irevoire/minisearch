@@ -1,5 +1,5 @@
-use std::sync::Arc;
 use std::time::Instant;
+use std::{borrow::Cow, sync::Arc};
 
 use axum::{extract, response, routing::get, Router};
 use serde::{Deserialize, Serialize};
@@ -41,13 +41,21 @@ async fn get_document<I: RawIndex>(
     extract::Extension(index): extract::Extension<Index<I>>,
     extract::Path(docid): extract::Path<DocId>,
 ) -> response::Json<Option<Document>> {
-    response::Json(index.lock().await.get_document(docid))
+    response::Json(index.lock().await.get_document(docid).map(Cow::into_owned))
 }
 
 async fn get_documents<I: RawIndex>(
     extract::Extension(index): extract::Extension<Index<I>>,
 ) -> response::Json<Vec<Document>> {
-    response::Json(index.lock().await.get_documents())
+    response::Json(
+        index
+            .lock()
+            .await
+            .get_documents()
+            .into_iter()
+            .map(Cow::into_owned)
+            .collect(),
+    )
 }
 
 #[derive(Serialize, Deserialize)]
@@ -146,7 +154,8 @@ async fn search<I: RawIndex>(
 ) -> response::Json<Value> {
     let now = Instant::now();
 
-    let results = index.lock().await.search(&query);
+    let index = index.lock().await;
+    let results = index.search(&query);
 
     response::Json(
         json!({ "elapsed": format!("{:?}", now.elapsed()), "nb_hits": results.len(), "results": results.into_iter().take(3).collect::<Vec<_>>() }),

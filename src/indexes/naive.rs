@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     collections::HashMap,
     fs::File,
     io::{ErrorKind, Seek, SeekFrom},
@@ -95,7 +96,7 @@ impl Default for Naive {
 }
 
 impl Index for Naive {
-    fn get_documents(&self) -> Vec<Document> {
+    fn get_documents(&self) -> Vec<Cow<Document>> {
         self.inner
             .documents
             .keys()
@@ -103,8 +104,8 @@ impl Index for Naive {
             .collect()
     }
 
-    fn get_document(&self, id: DocId) -> Option<Document> {
-        self.inner.documents.get(&id).cloned()
+    fn get_document(&self, id: DocId) -> Option<Cow<Document>> {
+        self.inner.documents.get(&id).map(Cow::Borrowed)
     }
 
     fn add_documents(&mut self, document: Vec<Document>) {
@@ -122,7 +123,7 @@ impl Index for Naive {
         self.persist();
     }
 
-    fn search(&self, query: &Query) -> Vec<Document> {
+    fn search(&self, query: &Query) -> Vec<Cow<Document>> {
         let mut docids: Vec<_> = tokenize(&query.q)
             .filter_map(|word| self.inner.words.get(&word))
             .flatten()

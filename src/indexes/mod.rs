@@ -1,15 +1,17 @@
 mod naive;
 
+use std::borrow::Cow;
+
 pub use naive::Naive;
 
 use crate::{DocId, Document, Query};
 
 pub trait Index: Send + Sync + Default {
     /// Get all the documents in the index
-    fn get_documents(&self) -> Vec<Document>;
+    fn get_documents(&self) -> Vec<Cow<Document>>;
 
     /// Get one document in the index
-    fn get_document(&self, id: DocId) -> Option<Document>;
+    fn get_document(&self, id: DocId) -> Option<Cow<Document>>;
 
     /// Add a batch of documents
     fn add_documents(&mut self, document: Vec<Document>);
@@ -18,7 +20,7 @@ pub trait Index: Send + Sync + Default {
     fn delete_documents(&mut self, documents: Vec<DocId>);
 
     /// Execute a search
-    fn search(&self, query: &Query) -> Vec<Document>;
+    fn search(&self, query: &Query) -> Vec<Cow<Document>>;
 
     /// clear the on disk database
     fn clear_database();
