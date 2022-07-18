@@ -18,5 +18,8 @@ pub trait Index: Send + Sync + Default {
     fn delete_documents(&mut self, documents: Vec<DocId>);
 
     /// Execute a search
-    fn search(&self, query: Query) -> Vec<Document>;
+    fn search(&self, query: &Query) -> Vec<Document>;
+
+    /// clear the on disk database
+    fn clear_database();
 }

@@ -135,7 +135,7 @@ async fn delete_documents<I: RawIndex>(
     response::Json(json!({ "elapsed": format!("{:?}", now.elapsed()) }))
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone, Debug)]
 pub struct Query {
     pub q: String,
 }
@@ -146,9 +146,9 @@ async fn search<I: RawIndex>(
 ) -> response::Json<Value> {
     let now = Instant::now();
 
-    let results = index.lock().await.search(query);
+    let results = index.lock().await.search(&query);
 
     response::Json(
-        json!({ "elapsed": format!("{:?}", now.elapsed()), "results": results.into_iter().take(3).collect::<Vec<_>>() }),
+        json!({ "elapsed": format!("{:?}", now.elapsed()), "nb_hits": results.len(), "results": results.into_iter().take(3).collect::<Vec<_>>() }),
     )
 }

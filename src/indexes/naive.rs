@@ -122,7 +122,7 @@ impl Index for Naive {
         self.persist();
     }
 
-    fn search(&self, query: Query) -> Vec<Document> {
+    fn search(&self, query: &Query) -> Vec<Document> {
         let mut docids: Vec<_> = tokenize(&query.q)
             .filter_map(|word| self.inner.words.get(&word))
             .flatten()
@@ -138,5 +138,9 @@ impl Index for Naive {
                     .expect("Internal error. Database corrupted")
             })
             .collect()
+    }
+
+    fn clear_database() {
+        std::fs::remove_file(DB_NAME).unwrap();
     }
 }
