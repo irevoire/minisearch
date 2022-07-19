@@ -2,7 +2,7 @@ use std::{
     borrow::Cow,
     collections::HashMap,
     fs::File,
-    io::{ErrorKind, Seek, SeekFrom},
+    io::{BufReader, BufWriter, ErrorKind, Seek, SeekFrom},
 };
 
 use serde::{Deserialize, Serialize};
@@ -28,7 +28,8 @@ struct Inner {
 impl Naive {
     fn persist(&mut self) {
         self.file.seek(SeekFrom::Start(0)).unwrap();
-        serde_json::to_writer(&mut self.file, &self.inner)
+        let mut writer = BufWriter::new(&mut self.file);
+        serde_json::to_writer(&mut writer, &self.inner)
             .expect("Internal error, can't serialize document");
     }
 
@@ -86,7 +87,8 @@ impl Default for Naive {
             }
             Err(err) => panic!("{}", err),
         };
-        let inner = serde_json::from_reader(&mut file).expect("Corrupted database");
+        let mut reader = BufReader::new(&mut file);
+        let inner = serde_json::from_reader(&mut reader).expect("Corrupted database");
         let file = File::create(DB_NAME).expect("Can't write in database");
 
         let mut this = Self { inner, file };
