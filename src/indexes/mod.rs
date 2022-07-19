@@ -1,7 +1,9 @@
 mod naive;
+mod roaring;
 
 use std::borrow::Cow;
 
+pub use self::roaring::Roaring;
 pub use naive::Naive;
 
 use crate::{DocId, Document, Query};

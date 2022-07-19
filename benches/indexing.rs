@@ -1,4 +1,4 @@
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{criterion_group, criterion_main, Bencher, Criterion};
 
 use minisearch::{indexes, Document, Index};
 
@@ -8,15 +8,19 @@ pub fn indexing(c: &mut Criterion) {
 
     let mut g = c.benchmark_group("Indexing");
     g.sample_size(10); // since indexing is so slow we're only going to run 10 iterations
-    g.bench_function("naive", |g| {
-        g.iter_with_setup(
-            || {
-                indexes::Naive::clear_database();
-                (indexes::Naive::default(), dataset.clone())
-            },
-            |(mut index, dataset)| index.add_documents(dataset),
-        )
-    });
+
+    g.bench_function("naive", |g| bench_index::<indexes::Naive>(g, &dataset));
+    g.bench_function("roaring", |g| bench_index::<indexes::Roaring>(g, &dataset));
+}
+
+fn bench_index<I: Index>(bencher: &mut Bencher, dataset: &[Document]) {
+    bencher.iter_with_setup(
+        || {
+            I::clear_database();
+            (I::default(), dataset.to_vec())
+        },
+        |(mut index, dataset)| index.add_documents(dataset),
+    )
 }
 
 criterion_group!(benches, indexing);

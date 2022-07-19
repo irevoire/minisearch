@@ -25,6 +25,8 @@ pub async fn run<I: RawIndex + 'static>(index: I) {
         .route("/search", get(search::<I>))
         .layer(extract::Extension(index));
 
+    println!("Server started on localhost:3000");
+
     // run it with hyper on localhost:3000
     axum::Server::bind(&"0.0.0.0:3000".parse().unwrap())
         .serve(app.into_make_service())

@@ -7,8 +7,12 @@ pub fn search(c: &mut Criterion) {
     let dataset = std::include_bytes!("../datasets/movies.json");
     let dataset: Vec<Document> = serde_json::from_reader(dataset.as_ref()).unwrap();
     indexes::Naive::clear_database();
-    let mut index = indexes::Naive::default();
-    index.add_documents(dataset);
+    let mut naive = indexes::Naive::default();
+    naive.add_documents(dataset.clone());
+
+    indexes::Roaring::clear_database();
+    let mut roaring = indexes::Roaring::default();
+    roaring.add_documents(dataset);
 
     #[rustfmt::skip]
     let requests = [
@@ -34,7 +38,8 @@ pub fn search(c: &mut Criterion) {
     for (name, query) in requests {
         let query = query.clone();
         let mut g = c.benchmark_group(format!("Search: {}", name));
-        g.bench_function("naive", |g| g.iter(|| index.search(&query)));
+        g.bench_function("naive", |g| g.iter(|| naive.search(&query)));
+        g.bench_function("roaring", |g| g.iter(|| roaring.search(&query)));
     }
 }
 
