@@ -2,6 +2,8 @@ use minisearch::indexes;
 
 #[tokio::main]
 async fn main() {
+    env_logger::init();
+
     let mut args = std::env::args();
     if args.len() > 2 {
         eprintln!("Usage:\n\t{} [engine]", args.nth(0).unwrap());

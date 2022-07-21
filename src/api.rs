@@ -25,7 +25,7 @@ pub async fn run<I: RawIndex + 'static>(index: I) {
         .route("/search", get(search::<I>))
         .layer(extract::Extension(index));
 
-    println!("Server started on localhost:3000");
+    log::info!("Server started on `http://localhost:3000/`");
 
     // run it with hyper on localhost:3000
     axum::Server::bind(&"0.0.0.0:3000".parse().unwrap())
@@ -159,7 +159,11 @@ async fn search<I: RawIndex>(
     let index = index.lock().await;
     let results = index.search(&query);
 
-    response::Json(
-        json!({ "elapsed": format!("{:?}", now.elapsed()), "nb_hits": results.len(), "results": results.into_iter().take(3).collect::<Vec<_>>() }),
-    )
+    let response = json!({ "elapsed": format!("{:?}", now.elapsed()), "nb_hits": results.len(), "results": results.into_iter().take(3).collect::<Vec<_>>() });
+    println!(
+        "returning {}",
+        serde_json::to_string_pretty(&response).unwrap()
+    );
+
+    response::Json(response)
 }
