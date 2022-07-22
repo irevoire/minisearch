@@ -4,14 +4,14 @@ use std::{borrow::Cow, sync::Arc};
 use axum::{extract, response, routing::get, Router};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use tokio::sync::Mutex;
+use tokio::sync::RwLock;
 
 use crate::{DocId, Index as RawIndex};
 
-type Index<I> = Arc<Mutex<I>>;
+type Index<I> = Arc<RwLock<I>>;
 
 pub async fn run<I: RawIndex + 'static>(index: I) {
-    let index = Arc::new(Mutex::new(index));
+    let index = Arc::new(RwLock::new(index));
     // our router
     let app = Router::new()
         .route("/", get(root))
@@ -43,7 +43,7 @@ async fn get_document<I: RawIndex>(
     extract::Extension(index): extract::Extension<Index<I>>,
     extract::Path(docid): extract::Path<DocId>,
 ) -> response::Json<Option<Document>> {
-    response::Json(index.lock().await.get_document(docid).map(Cow::into_owned))
+    response::Json(index.read().await.get_document(docid).map(Cow::into_owned))
 }
 
 async fn get_documents<I: RawIndex>(
@@ -51,7 +51,7 @@ async fn get_documents<I: RawIndex>(
 ) -> response::Json<Vec<Document>> {
     response::Json(
         index
-            .lock()
+            .read()
             .await
             .get_documents()
             .into_iter()
@@ -121,7 +121,7 @@ async fn add_documents<I: RawIndex>(
 ) -> response::Json<Value> {
     let now = Instant::now();
 
-    let mut index = index.lock().await;
+    let mut index = index.write().await;
     match documents {
         OneOrMany::One(document) => index.add_documents(vec![document]),
         OneOrMany::Multiple(documents) => index.add_documents(documents),
@@ -136,7 +136,7 @@ async fn delete_documents<I: RawIndex>(
 ) -> response::Json<Value> {
     let now = Instant::now();
 
-    let mut index = index.lock().await;
+    let mut index = index.write().await;
     match docids {
         OneOrMany::One(docid) => index.delete_documents(vec![docid]),
         OneOrMany::Multiple(docids) => index.delete_documents(docids),
@@ -156,7 +156,7 @@ async fn search<I: RawIndex>(
 ) -> response::Json<Value> {
     let now = Instant::now();
 
-    let index = index.lock().await;
+    let index = index.read().await;
     let results = index.search(&query);
 
     let response = json!({ "elapsed": format!("{:?}", now.elapsed()), "nb_hits": results.len(), "results": results.into_iter().take(3).collect::<Vec<_>>() });
