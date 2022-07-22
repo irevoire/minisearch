@@ -160,10 +160,5 @@ async fn search<I: RawIndex>(
     let results = index.search(&query);
 
     let response = json!({ "elapsed": format!("{:?}", now.elapsed()), "nb_hits": results.len(), "results": results.into_iter().take(3).collect::<Vec<_>>() });
-    println!(
-        "returning {}",
-        serde_json::to_string_pretty(&response).unwrap()
-    );
-
     response::Json(response)
 }
