@@ -1,10 +1,12 @@
 mod naive;
 mod roaring;
+mod sqlite;
 
 use std::borrow::Cow;
 
 pub use self::roaring::Roaring;
 pub use naive::Naive;
+pub use sqlite::SQLite;
 
 use crate::{DocId, Document, Query};
 
