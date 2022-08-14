@@ -12,8 +12,11 @@ async fn main() {
     match args.nth(1).as_deref() {
         None | Some("naive") => minisearch::run(indexes::Naive::default()).await,
         Some("roaring") => minisearch::run(indexes::Roaring::default()).await,
+        Some("sqlite") => minisearch::run(indexes::SQLite::default()).await,
         Some(engine) => {
-            eprintln!("Unknown engine {engine}. Available engine are `naive` and `roaring`.");
+            eprintln!(
+                "Unknown engine {engine}. Available engine are `naive`, `roaring` and `sqlite`."
+            );
         }
     }
 }
