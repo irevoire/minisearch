@@ -1,10 +1,12 @@
 mod naive;
 mod roaring;
+mod sled;
 mod sqlite;
 
 use std::borrow::Cow;
 
 pub use self::roaring::Roaring;
+pub use self::sled::Sled;
 pub use naive::Naive;
 pub use sqlite::SQLite;
 

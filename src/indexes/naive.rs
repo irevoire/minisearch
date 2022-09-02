@@ -77,13 +77,16 @@ impl Default for Naive {
         let mut file = match File::open(DB_NAME) {
             Ok(file) => file,
             Err(err) if err.kind() == ErrorKind::NotFound => {
-                return Naive {
+                let mut index = Naive {
                     inner: Inner {
                         documents: HashMap::new(),
                         words: HashMap::new(),
                     },
                     file: File::create(DB_NAME).expect("Can't open database"),
                 };
+                index.persist();
+
+                return index;
             }
             Err(err) => panic!("{}", err),
         };
@@ -144,6 +147,10 @@ impl Index for Naive {
     }
 
     fn clear_database() {
-        std::fs::remove_file(DB_NAME).unwrap();
+        match std::fs::remove_file(DB_NAME) {
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => (),
+            Ok(()) => (),
+            e => e.unwrap(),
+        }
     }
 }

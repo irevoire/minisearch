@@ -15,6 +15,7 @@ roaring = { git = "https://github.com/irevoire/roaring-rs", branch = "serde", fe
 rusqlite = "0.28.0"
 serde = { version = "1.0.139", features = ["derive"] }
 serde_json = { version = "1.0.82", features = ["preserve_order"] }
+sled = "0.34.7"
 tokio = { version = "1.20.0", features = ["tokio-macros", "macros", "fs", "sync", "rt-multi-thread"] }
 
 [dev-dependencies]
