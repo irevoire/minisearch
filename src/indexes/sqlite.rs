@@ -109,7 +109,9 @@ impl Index for SQLite {
     }
 
     fn search(&self, query: &crate::Query) -> Vec<DocId> {
-        let words = tokenize(&query.q).collect::<Vec<String>>().join(",");
+        let words = tokenize(query.q.as_deref().unwrap_or(""))
+            .collect::<Vec<String>>()
+            .join(",");
 
         let res = CONNECTION
             .lock()

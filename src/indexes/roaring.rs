@@ -126,7 +126,7 @@ impl Index for Roaring {
     }
 
     fn search(&self, query: &Query) -> Vec<DocId> {
-        let docids = tokenize(&query.q)
+        let docids = tokenize(query.q.as_deref().unwrap_or(""))
             .filter_map(|word| self.inner.words.get(&word))
             .fold(RoaringBitmap::default(), |acc, bitmap| acc | bitmap);
 

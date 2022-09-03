@@ -158,7 +158,7 @@ impl Index for Sled {
     }
 
     fn search(&self, query: &Query) -> Vec<DocId> {
-        let docids = tokenize(&query.q)
+        let docids = tokenize(query.q.as_deref().unwrap_or(""))
             .filter_map(|word| self.words.get(&word).unwrap())
             .fold(RoaringBitmap::default(), |acc, bitmap| {
                 acc | RoaringBitmap::deserialize_from(&*bitmap).unwrap()

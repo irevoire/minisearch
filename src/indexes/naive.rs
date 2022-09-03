@@ -129,7 +129,7 @@ impl Index for Naive {
     }
 
     fn search(&self, query: &Query) -> Vec<DocId> {
-        let mut docids: Vec<_> = tokenize(&query.q)
+        let mut docids: Vec<_> = tokenize(query.q.as_deref().unwrap_or(""))
             .filter_map(|word| self.inner.words.get(&word))
             .flatten()
             .cloned()

@@ -145,9 +145,13 @@ async fn delete_documents<I: RawIndex>(
     response::Json(json!({ "elapsed": format!("{:?}", now.elapsed()) }))
 }
 
+const DEFAULT_LIMIT: fn() -> usize = || 20;
+
 #[derive(Deserialize, Clone, Debug)]
 pub struct Query {
-    pub q: String,
+    pub q: Option<String>,
+    #[serde(default = "DEFAULT_LIMIT")]
+    pub limit: usize,
 }
 
 async fn search<I: RawIndex>(
@@ -161,7 +165,7 @@ async fn search<I: RawIndex>(
     let results: Vec<_> = results
         .into_iter()
         .map(|id| index.get_document(id))
-        .take(3)
+        .take(query.limit)
         .collect();
 
     let response = json!({ "elapsed": format!("{:?}", now.elapsed()), "nb_hits": results.len(), "results": results });
