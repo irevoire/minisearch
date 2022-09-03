@@ -15,8 +15,6 @@ const DB_NAME: &str = "sled.db";
 pub struct Sled {
     documents: sled::Db,
     words: sled::Db,
-    // documents: HashMap<DocId, Document>,
-    // words: HashMap<String, RoaringBitmap>,
 }
 
 impl Sled {
