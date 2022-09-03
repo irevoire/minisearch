@@ -157,20 +157,14 @@ impl Index for Sled {
         self.documents.flush().unwrap();
     }
 
-    fn search(&self, query: &Query) -> Vec<Cow<Document>> {
+    fn search(&self, query: &Query) -> Vec<DocId> {
         let docids = tokenize(&query.q)
             .filter_map(|word| self.words.get(&word).unwrap())
             .fold(RoaringBitmap::default(), |acc, bitmap| {
                 acc | RoaringBitmap::deserialize_from(&*bitmap).unwrap()
             });
 
-        docids
-            .into_iter()
-            .map(|docid| {
-                self.get_document(docid)
-                    .expect("Internal error. Database corrupted")
-            })
-            .collect()
+        docids.into_iter().collect()
     }
 
     fn clear_database() {

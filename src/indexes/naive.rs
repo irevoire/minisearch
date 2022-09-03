@@ -128,22 +128,17 @@ impl Index for Naive {
         self.persist();
     }
 
-    fn search(&self, query: &Query) -> Vec<Cow<Document>> {
+    fn search(&self, query: &Query) -> Vec<DocId> {
         let mut docids: Vec<_> = tokenize(&query.q)
             .filter_map(|word| self.inner.words.get(&word))
             .flatten()
+            .cloned()
             .collect();
 
         docids.sort_unstable();
         docids.dedup();
 
         docids
-            .into_iter()
-            .map(|docid| {
-                self.get_document(*docid)
-                    .expect("Internal error. Database corrupted")
-            })
-            .collect()
     }
 
     fn clear_database() {

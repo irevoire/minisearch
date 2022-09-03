@@ -125,18 +125,12 @@ impl Index for Roaring {
         self.persist();
     }
 
-    fn search(&self, query: &Query) -> Vec<Cow<Document>> {
+    fn search(&self, query: &Query) -> Vec<DocId> {
         let docids = tokenize(&query.q)
             .filter_map(|word| self.inner.words.get(&word))
             .fold(RoaringBitmap::default(), |acc, bitmap| acc | bitmap);
 
-        docids
-            .into_iter()
-            .map(|docid| {
-                self.get_document(docid)
-                    .expect("Internal error. Database corrupted")
-            })
-            .collect()
+        docids.into_iter().collect()
     }
 
     fn clear_database() {

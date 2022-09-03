@@ -158,7 +158,12 @@ async fn search<I: RawIndex>(
 
     let index = index.read().await;
     let results = index.search(&query);
+    let results: Vec<_> = results
+        .into_iter()
+        .map(|id| index.get_document(id))
+        .take(3)
+        .collect();
 
-    let response = json!({ "elapsed": format!("{:?}", now.elapsed()), "nb_hits": results.len(), "results": results.into_iter().take(3).collect::<Vec<_>>() });
+    let response = json!({ "elapsed": format!("{:?}", now.elapsed()), "nb_hits": results.len(), "results": results });
     response::Json(response)
 }
