@@ -118,8 +118,7 @@ impl Index for SQLite {
             .unwrap()
             .prepare(
                 r#"
-            SELECT DISTINCT documents.doc_id FROM documents
-            INNER JOIN document_search
+            SELECT DISTINCT document_search.doc_id FROM document_search
             WHERE document_search.word IN (?);
             "#,
             )
