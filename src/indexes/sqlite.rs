@@ -2,7 +2,7 @@ use std::sync::Mutex;
 
 use rusqlite::{params, Connection};
 
-use crate::{tokenize, Index};
+use crate::{tokenize, DocId, Index};
 
 lazy_static::lazy_static!(
     static ref CONNECTION: Mutex<Connection> = Mutex::new(Connection::open("sqlite.db").expect("Couldn’t init sqlite database"));
@@ -108,29 +108,23 @@ impl Index for SQLite {
             .unwrap();
     }
 
-    fn search(&self, query: &crate::Query) -> Vec<std::borrow::Cow<crate::Document>> {
+    fn search(&self, query: &crate::Query) -> Vec<DocId> {
         let words = tokenize(&query.q).collect::<Vec<String>>().join(",");
-        println!("Searching with query {}", words);
+
         let res = CONNECTION
             .lock()
             .unwrap()
             .prepare(
                 r#"
-            SELECT DISTINCT documents.doc_id, documents.document FROM documents
-            INNER JOIN document_search ON documents.doc_id = document_search.doc_id
+            SELECT DISTINCT documents.doc_id FROM documents
+            INNER JOIN document_search
             WHERE document_search.word IN (?);
             "#,
             )
             .unwrap()
-            .query_map(params![words], |row| {
-                Ok(serde_json::from_slice(
-                    &row.get::<_, Vec<u8>>(1).expect("Error retrieving document"),
-                ))
-            })
+            .query_map(params![words], |row| row.get::<_, u32>(0))
             .unwrap()
             .map(Result::unwrap)
-            .map(Result::unwrap)
-            .map(|doc| std::borrow::Cow::Owned(doc))
             .collect();
 
         res

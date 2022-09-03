@@ -26,7 +26,7 @@ pub trait Index: Send + Sync + Default {
     fn delete_documents(&mut self, documents: Vec<DocId>);
 
     /// Execute a search
-    fn search(&self, query: &Query) -> Vec<Cow<Document>>;
+    fn search(&self, query: &Query) -> Vec<DocId>;
 
     /// clear the on disk database
     fn clear_database();
