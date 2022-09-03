@@ -1,4 +1,7 @@
-use std::borrow::Cow;
+use std::{
+    borrow::Cow,
+    collections::{hash_map::Entry, HashMap},
+};
 
 use roaring::RoaringBitmap;
 
@@ -17,11 +20,15 @@ pub struct Sled {
 }
 
 impl Sled {
-    fn add_document(&mut self, document: Document) {
+    fn add_document(
+        &mut self,
+        document: Document,
+        dirty_words: &mut HashMap<String, RoaringBitmap>,
+    ) {
         let docid = document.docid();
 
         // first we delete the old version of the document
-        self.delete_document(docid);
+        self.delete_document(docid, dirty_words);
 
         let mut words: Vec<_> = document.fields().flat_map(tokenize).collect();
         // if a word is present multiple times in the same field we only count it once
@@ -29,25 +36,27 @@ impl Sled {
         words.dedup();
 
         for word in words {
-            self.words
-                .fetch_and_update(word, |word| {
-                    let mut ids = match word {
-                        Some(word) => roaring::RoaringBitmap::deserialize_from(word).unwrap(),
+            match dirty_words.entry(word) {
+                Entry::Occupied(mut bitmap) => {
+                    bitmap.get_mut().insert(docid);
+                }
+                Entry::Vacant(entry) => {
+                    // We get the current value from the db
+                    let mut bitmap = match self.words.get(entry.key()).unwrap() {
+                        Some(bytes) => RoaringBitmap::deserialize_from(&*bytes).unwrap(),
                         None => RoaringBitmap::new(),
                     };
-                    ids.insert(docid);
-                    let mut buff = Vec::with_capacity(ids.serialized_size());
-                    ids.serialize_into(&mut buff).unwrap();
-                    Some(buff)
-                })
-                .unwrap();
+                    bitmap.insert(docid);
+                    entry.insert(bitmap);
+                }
+            };
         }
         self.documents
             .insert(docid.to_ne_bytes(), serde_json::to_vec(&document).unwrap())
             .unwrap();
     }
 
-    fn delete_document(&mut self, docid: DocId) {
+    fn delete_document(&mut self, docid: DocId, dirty_words: &mut HashMap<String, RoaringBitmap>) {
         if let Some(document) = self.documents.remove(docid.to_ne_bytes()).unwrap() {
             let document: Document =
                 serde_json::from_slice(&document).expect("Can't parse document");
@@ -57,19 +66,36 @@ impl Sled {
             words.sort_unstable();
             words.dedup();
 
-            words.into_iter().for_each(|word| {
-                self.words
-                    .fetch_and_update(&word, |bitmap| {
-                        let mut ids =
-                            roaring::RoaringBitmap::deserialize_from(bitmap.unwrap()).unwrap();
-                        ids.remove(docid);
-                        let mut buff = Vec::with_capacity(ids.serialized_size());
-                        ids.serialize_into(&mut buff).unwrap();
-                        Some(buff)
-                    })
-                    .unwrap();
-            });
+            for word in words {
+                match dirty_words.entry(word) {
+                    Entry::Occupied(mut bitmap) => {
+                        bitmap.get_mut().insert(docid);
+                    }
+                    Entry::Vacant(entry) => {
+                        // We get the current value from the db
+                        let bytes = self.words.get(entry.key()).unwrap().unwrap();
+                        let mut bitmap =
+                            roaring::RoaringBitmap::deserialize_from(bytes.as_ref()).unwrap();
+                        bitmap.remove(docid);
+                        entry.insert(bitmap);
+                    }
+                }
+            }
         }
+    }
+
+    /// Update all the entry in the dirty words.
+    fn apply_dirty_words(&mut self, dirty_words: &mut HashMap<String, RoaringBitmap>) {
+        // we reuse the same allocation for all the documents
+        let mut buffer = Vec::new();
+
+        for (word, bitmap) in dirty_words.into_iter() {
+            bitmap.serialize_into(&mut buffer).unwrap();
+            self.words.insert(word, buffer.as_slice()).unwrap();
+            buffer.clear();
+        }
+
+        self.words.flush().unwrap();
     }
 }
 
@@ -109,22 +135,28 @@ impl Index for Sled {
             .map(Cow::Owned)
     }
 
-    fn add_documents(&mut self, document: Vec<Document>) {
-        document
-            .into_iter()
-            .for_each(|document| self.add_document(document));
+    /// Since deser+ser the bitmaps for each insertion is slow we're going to create a
+    /// temporary map of the words databases containing only the modified words.
+    /// Then we reinsert + serialize all the modified words at once.
+    fn add_documents(&mut self, documents: Vec<Document>) {
+        let mut dirty_words = HashMap::new();
 
+        documents
+            .into_iter()
+            .for_each(|document| self.add_document(document, &mut dirty_words));
+
+        self.apply_dirty_words(&mut dirty_words);
         self.documents.flush().unwrap();
-        self.words.flush().unwrap();
     }
 
     fn delete_documents(&mut self, docids: Vec<DocId>) {
-        for docid in docids {
-            self.delete_document(docid);
-        }
+        let mut dirty_words = HashMap::new();
 
+        for docid in docids {
+            self.delete_document(docid, &mut dirty_words);
+        }
+        self.apply_dirty_words(&mut dirty_words);
         self.documents.flush().unwrap();
-        self.words.flush().unwrap();
     }
 
     fn search(&self, query: &Query) -> Vec<Cow<Document>> {
