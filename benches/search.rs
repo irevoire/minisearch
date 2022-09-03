@@ -12,7 +12,11 @@ pub fn search(c: &mut Criterion) {
 
     indexes::Roaring::clear_database();
     let mut roaring = indexes::Roaring::default();
-    roaring.add_documents(dataset);
+    roaring.add_documents(dataset.clone());
+
+    indexes::Sled::clear_database();
+    let mut sled = indexes::Sled::default();
+    sled.add_documents(dataset);
 
     #[rustfmt::skip]
     let requests = [
@@ -40,6 +44,7 @@ pub fn search(c: &mut Criterion) {
         let mut g = c.benchmark_group(format!("Search: {}", name));
         g.bench_function("naive", |g| g.iter(|| naive.search(&query)));
         g.bench_function("roaring", |g| g.iter(|| roaring.search(&query)));
+        g.bench_function("sled", |g| g.iter(|| sled.search(&query)));
     }
 }
 
