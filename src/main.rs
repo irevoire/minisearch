@@ -10,13 +10,14 @@ async fn main() {
         return;
     }
     match args.nth(1).as_deref() {
-        Some("sqlite") => minisearch::run(indexes::SQLite::default()).await,
         Some("naive") => minisearch::run(indexes::Naive::default()).await,
+        Some("sqlite") => minisearch::run(indexes::SQLite::default()).await,
         Some("roaring") => minisearch::run(indexes::Roaring::default()).await,
-        Some("sled") | None => minisearch::run(indexes::Sled::default()).await,
+        Some("sled") => minisearch::run(indexes::Sled::default()).await,
+        Some("heed") | None => minisearch::run(indexes::Heed::default()).await,
         Some(engine) => {
             eprintln!(
-                "Unknown engine {engine}. Available engine are `sqlite`, `naive`, `roaring`, `sled`."
+                "Unknown engine {engine}. Available engine are `sqlite`, `naive`, `roaring`, `sled`, `heed`."
             );
         }
     }

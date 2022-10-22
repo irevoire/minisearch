@@ -16,26 +16,30 @@ pub fn search(c: &mut Criterion) {
 
     indexes::Sled::clear_database();
     let mut sled = indexes::Sled::default();
-    sled.add_documents(dataset);
+    sled.add_documents(dataset.clone());
+
+    indexes::Heed::clear_database();
+    let mut heed = indexes::Heed::default();
+    heed.add_documents(dataset);
 
     #[rustfmt::skip]
     let requests = [
         // 10
-        ("No merge - small", Query { q: S("Hello") }),
+        ("No merge - small", Query { q: Some(S("Hello")), limit: 10 }),
         // 100
-        ("No merge - medium", Query { q: S("tour") }),
+        ("No merge - medium", Query { q: Some(S("tour")), limit: 10 }),
         // 1000
-        ("No merge - large", Query { q: S("documentary") }),
+        ("No merge - large", Query { q: Some(S("documentary")), limit: 10 }),
         // 10_000
-        ("No merge - extra_large", Query { q: S("and") }),
+        ("No merge - extra_large", Query { q: Some(S("and")), limit: 10 }),
         // 10
-        ("Merge - small", Query { q: S("Hello lol") }),
+        ("Merge - small", Query { q: Some(S("Hello lol")), limit: 10 }),
         // 100
-        ("Merge - medium", Query { q: S("color red") }),
+        ("Merge - medium", Query { q: Some(S("color red")), limit: 10 }),
         // 1000
-        ("Merge - large", Query { q: S("Hello lol") }),
+        ("Merge - large", Query { q: Some(S("Hello lol")), limit: 10 }),
         // 10_000
-        ("Merge - extra_large", Query { q: S("bob and his dog") },
+        ("Merge - extra_large", Query { q: Some(S("bob and his dog")), limit: 10 },
         ),
     ];
 
@@ -45,6 +49,7 @@ pub fn search(c: &mut Criterion) {
         g.bench_function("naive", |g| g.iter(|| naive.search(&query)));
         g.bench_function("roaring", |g| g.iter(|| roaring.search(&query)));
         g.bench_function("sled", |g| g.iter(|| sled.search(&query)));
+        g.bench_function("heed", |g| g.iter(|| heed.search(&query)));
     }
 }
 
