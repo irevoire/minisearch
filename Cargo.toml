@@ -19,6 +19,8 @@ sled = "1.0.0-alpha.124"
 heed = "0.23.1"
 redb = "5.0.0"
 tokio = { version = "1.54.1", features = ["tokio-macros", "macros", "fs", "net", "sync", "rt-multi-thread"] }
+clap = { version = "4.6.9", features = ["derive"] }
+rand = "0.10.4"
 
 [dev-dependencies]
 big_s = "1.0.2"
