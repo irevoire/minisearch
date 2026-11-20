@@ -1,12 +1,12 @@
-use std::sync::Mutex;
+use std::sync::{LazyLock, Mutex};
 
 use rusqlite::{params, Connection};
 
 use crate::{tokenize, DocId, Index};
 
-lazy_static::lazy_static!(
-    static ref CONNECTION: Mutex<Connection> = Mutex::new(Connection::open("sqlite.db").expect("Couldn’t init sqlite database"));
-);
+static CONNECTION: LazyLock<Mutex<Connection>> = LazyLock::new(|| {
+    Mutex::new(Connection::open("sqlite.db").expect("Couldn’t init sqlite database"))
+});
 
 pub struct SQLite {}
 
