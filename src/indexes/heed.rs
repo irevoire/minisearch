@@ -5,8 +5,9 @@ use std::{
 };
 
 use heed::{
-    types::{OwnedType, SerdeJson, Str},
-    Database, Env, RwTxn,
+    byteorder::BigEndian,
+    types::{SerdeJson, Str, U32},
+    BoxedError, BytesDecode, BytesEncode, CommitOrAbort, Database, Env, RwTxn,
 };
 use roaring::RoaringBitmap;
 
@@ -22,10 +23,31 @@ mod db_name {
     pub const WORDS: &str = "words";
 }
 
+/// Store the bitmaps in the roaring portable format instead of going through serde.
+struct RoaringBitmapCodec;
+
+impl<'a> BytesEncode<'a> for RoaringBitmapCodec {
+    type EItem = RoaringBitmap;
+
+    fn bytes_encode(item: &'a Self::EItem) -> Result<Cow<'a, [u8]>, BoxedError> {
+        let mut bytes = Vec::with_capacity(item.serialized_size());
+        item.serialize_into(&mut bytes)?;
+        Ok(Cow::Owned(bytes))
+    }
+}
+
+impl<'a> BytesDecode<'a> for RoaringBitmapCodec {
+    type DItem = RoaringBitmap;
+
+    fn bytes_decode(bytes: &'a [u8]) -> Result<Self::DItem, BoxedError> {
+        Ok(RoaringBitmap::deserialize_from(bytes)?)
+    }
+}
+
 pub struct Heed {
     env: Env,
-    documents: Database<OwnedType<u32>, SerdeJson<Document>>,
-    words: Database<Str, SerdeJson<RoaringBitmap>>,
+    documents: Database<'static, U32<BigEndian>, SerdeJson<Document>>,
+    words: Database<'static, Str, RoaringBitmapCodec>,
 }
 
 impl Heed {
@@ -119,12 +141,23 @@ impl Default for Heed {
         let mut options = heed::EnvOpenOptions::new();
         options.max_dbs(3);
         options.map_size(1024 * 1024 * 1024);
-        let env = options.open(&DB_NAME).unwrap();
+        // Safety: the database directory is only opened once by this process
+        let env = unsafe { options.open(DB_NAME) }.unwrap();
+
+        let wtxn = env.write_txn().unwrap();
+        let (documents, words) = env
+            .create_databases_and_commit(wtxn, |opener, wtxn| -> heed::Result<_> {
+                let documents = opener.create_database(wtxn, Some(db_name::DOCUMENTS))?;
+                let words = opener.create_database(wtxn, Some(db_name::WORDS))?;
+                Ok(CommitOrAbort::<_, ()>::Commit((documents, words)))
+            })
+            .unwrap()
+            .unwrap_commit();
 
         Self {
-            documents: env.create_database(Some(db_name::DOCUMENTS)).unwrap(),
-            words: env.create_database(Some(db_name::WORDS)).unwrap(),
             env,
+            documents,
+            words,
         }
     }
 }
