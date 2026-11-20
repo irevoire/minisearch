@@ -2,6 +2,7 @@ use std::{
     borrow::Cow,
     collections::{hash_map::Entry, HashMap},
     io::ErrorKind,
+    sync::Mutex,
 };
 
 use roaring::RoaringBitmap;
@@ -14,8 +15,9 @@ const DB_NAME: &str = "sled.db";
 
 #[derive(Debug)]
 pub struct Sled {
-    documents: sled::Db,
-    words: sled::Db,
+    // Since sled 1.0 a `Db` is `Send` but not `Sync`
+    documents: Mutex<sled::Db>,
+    words: Mutex<sled::Db>,
 }
 
 impl Sled {
@@ -41,7 +43,7 @@ impl Sled {
                 }
                 Entry::Vacant(entry) => {
                     // We get the current value from the db
-                    let mut bitmap = match self.words.get(entry.key()).unwrap() {
+                    let mut bitmap = match self.words.get_mut().unwrap().get(entry.key()).unwrap() {
                         Some(bytes) => RoaringBitmap::deserialize_from(&*bytes).unwrap(),
                         None => RoaringBitmap::new(),
                     };
@@ -51,12 +53,15 @@ impl Sled {
             };
         }
         self.documents
+            .get_mut()
+            .unwrap()
             .insert(docid.to_ne_bytes(), serde_json::to_vec(&document).unwrap())
             .unwrap();
     }
 
     fn delete_document(&mut self, docid: DocId, dirty_words: &mut HashMap<String, RoaringBitmap>) {
-        if let Some(document) = self.documents.remove(docid.to_ne_bytes()).unwrap() {
+        let documents = self.documents.get_mut().unwrap();
+        if let Some(document) = documents.remove(docid.to_ne_bytes()).unwrap() {
             let document: Document =
                 serde_json::from_slice(&document).expect("Can't parse document");
             // we get all the words in a document and then get rids of our id for each of these words
@@ -72,7 +77,13 @@ impl Sled {
                     }
                     Entry::Vacant(entry) => {
                         // We get the current value from the db
-                        let bytes = self.words.get(entry.key()).unwrap().unwrap();
+                        let bytes = self
+                            .words
+                            .get_mut()
+                            .unwrap()
+                            .get(entry.key())
+                            .unwrap()
+                            .unwrap();
                         let mut bitmap =
                             roaring::RoaringBitmap::deserialize_from(bytes.as_ref()).unwrap();
                         bitmap.remove(docid);
@@ -85,16 +96,17 @@ impl Sled {
 
     /// Update all the entry in the dirty words.
     fn apply_dirty_words(&mut self, dirty_words: &mut HashMap<String, RoaringBitmap>) {
+        let words = self.words.get_mut().unwrap();
         // we reuse the same allocation for all the documents
         let mut buffer = Vec::new();
 
         for (word, bitmap) in dirty_words.into_iter() {
             bitmap.serialize_into(&mut buffer).unwrap();
-            self.words.insert(word, buffer.as_slice()).unwrap();
+            words.insert(word.as_str(), buffer.as_slice()).unwrap();
             buffer.clear();
         }
 
-        self.words.flush().unwrap();
+        words.flush().unwrap();
     }
 }
 
@@ -108,26 +120,27 @@ impl Default for Sled {
         let doc_mapping: sled::Db = sled::open(format!("{DB_NAME}/doc_mapping.db")).unwrap();
         let words: sled::Db = sled::open(format!("{DB_NAME}/words.db")).unwrap();
         Self {
-            documents: doc_mapping,
-            words,
+            documents: Mutex::new(doc_mapping),
+            words: Mutex::new(words),
         }
     }
 }
 
 impl Index for Sled {
     fn get_documents(&self) -> Vec<Cow<Document>> {
+        // decode the values directly, calling `get_document` would deadlock on the mutex
         self.documents
+            .lock()
+            .unwrap()
             .iter()
-            .map(|id| {
-                self.get_document(u32::from_ne_bytes((*id.unwrap().0).try_into().unwrap()))
-                    .expect("Corrupted database")
-                    .clone()
-            })
+            .map(|entry| Cow::Owned(serde_json::from_slice(&entry.unwrap().1).unwrap()))
             .collect()
     }
 
     fn get_document(&self, id: DocId) -> Option<Cow<Document>> {
         self.documents
+            .lock()
+            .unwrap()
             .get(&id.to_ne_bytes())
             .unwrap()
             .map(|doc| serde_json::from_slice(&doc).unwrap())
@@ -145,7 +158,7 @@ impl Index for Sled {
             .for_each(|document| self.add_document(document, &mut dirty_words));
 
         self.apply_dirty_words(&mut dirty_words);
-        self.documents.flush().unwrap();
+        self.documents.get_mut().unwrap().flush().unwrap();
     }
 
     fn delete_documents(&mut self, docids: Vec<DocId>) {
@@ -155,12 +168,13 @@ impl Index for Sled {
             self.delete_document(docid, &mut dirty_words);
         }
         self.apply_dirty_words(&mut dirty_words);
-        self.documents.flush().unwrap();
+        self.documents.get_mut().unwrap().flush().unwrap();
     }
 
     fn search(&self, query: &Query) -> Vec<DocId> {
+        let words = self.words.lock().unwrap();
         let docids = tokenize(query.q.as_deref().unwrap_or(""))
-            .filter_map(|word| self.words.get(&word).unwrap())
+            .filter_map(|word| words.get(&word).unwrap())
             .fold(RoaringBitmap::default(), |acc, bitmap| {
                 acc | RoaringBitmap::deserialize_from(&*bitmap).unwrap()
             });

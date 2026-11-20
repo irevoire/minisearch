@@ -15,7 +15,7 @@ roaring = { version = "0.12.0", features = ["serde"] }
 rusqlite = "0.28.0"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = { version = "1.0.154", features = ["preserve_order"] }
-sled = "0.34.7"
+sled = "1.0.0-alpha.124"
 heed = "0.23.1"
 tokio = { version = "1.20.0", features = ["tokio-macros", "macros", "fs", "sync", "rt-multi-thread"] }
 
