@@ -1,3 +1,4 @@
+mod fiole;
 mod heed;
 mod naive;
 mod roaring;
@@ -6,6 +7,7 @@ mod sqlite;
 
 use std::borrow::Cow;
 
+pub use self::fiole::Fiole;
 pub use self::heed::Heed;
 pub use self::roaring::Roaring;
 pub use self::sled::Sled;

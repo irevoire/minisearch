@@ -9,6 +9,7 @@ edition = "2021"
 axum = { version = "0.8.9", features = ["http2"] }
 deunicode = "1.6.2"
 env_logger = "0.11.11"
+fiole = { git = "https://github.com/irevoire/fiole", rev = "c4eeac82ac51a998f095f3cc98bb32b94336045b", features = ["roaring", "serde_json"] }
 log = "0.4.35"
 roaring = { version = "0.12.0", features = ["serde"] }
 rusqlite = "0.43.0"

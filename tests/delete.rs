@@ -58,3 +58,9 @@ fn sled() {
     delete_batch_with_shared_word::<indexes::Sled>();
     replace_in_batch_with_shared_word::<indexes::Sled>();
 }
+
+#[test]
+fn fiole() {
+    delete_batch_with_shared_word::<indexes::Fiole>();
+    replace_in_batch_with_shared_word::<indexes::Fiole>();
+}
