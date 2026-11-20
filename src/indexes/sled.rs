@@ -73,7 +73,7 @@ impl Sled {
             for word in words.into_iter().filter(|w| !w.is_empty()) {
                 match dirty_words.entry(word) {
                     Entry::Occupied(mut bitmap) => {
-                        bitmap.get_mut().insert(docid);
+                        bitmap.get_mut().remove(docid);
                     }
                     Entry::Vacant(entry) => {
                         // We get the current value from the db
