@@ -24,7 +24,11 @@ pub fn search(c: &mut Criterion) {
 
     indexes::Fiole::clear_database();
     let mut fiole = indexes::Fiole::default();
-    fiole.add_documents(dataset);
+    fiole.add_documents(dataset.clone());
+
+    indexes::Redb::clear_database();
+    let mut redb = indexes::Redb::default();
+    redb.add_documents(dataset);
 
     #[rustfmt::skip]
     let requests = [
@@ -55,6 +59,7 @@ pub fn search(c: &mut Criterion) {
         g.bench_function("sled", |g| g.iter(|| sled.search(&query)));
         g.bench_function("heed", |g| g.iter(|| heed.search(&query)));
         g.bench_function("fiole", |g| g.iter(|| fiole.search(&query)));
+        g.bench_function("redb", |g| g.iter(|| redb.search(&query)));
     }
 }
 

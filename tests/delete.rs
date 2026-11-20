@@ -73,3 +73,9 @@ fn fiole() {
     delete_batch_with_shared_word::<indexes::Fiole>();
     replace_in_batch_with_shared_word::<indexes::Fiole>();
 }
+
+#[test]
+fn redb() {
+    delete_batch_with_shared_word::<indexes::Redb>();
+    replace_in_batch_with_shared_word::<indexes::Redb>();
+}

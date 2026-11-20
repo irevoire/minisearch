@@ -15,10 +15,11 @@ async fn main() {
         Some("roaring") => minisearch::run(indexes::Roaring::default()).await,
         Some("sled") => minisearch::run(indexes::Sled::default()).await,
         Some("fiole") => minisearch::run(indexes::Fiole::default()).await,
+        Some("redb") => minisearch::run(indexes::Redb::default()).await,
         Some("heed") | None => minisearch::run(indexes::Heed::default()).await,
         Some(engine) => {
             eprintln!(
-                "Unknown engine {engine}. Available engine are `sqlite`, `naive`, `roaring`, `sled`, `heed`, `fiole`."
+                "Unknown engine {engine}. Available engine are `sqlite`, `naive`, `roaring`, `sled`, `heed`, `fiole`, `redb`."
             );
         }
     }
