@@ -184,6 +184,10 @@ impl Index for Redb {
         docids.into_iter().collect()
     }
 
+    fn database_path() -> &'static str {
+        DB_NAME
+    }
+
     fn clear_database() {
         match std::fs::remove_file(DB_NAME) {
             Ok(()) => (),

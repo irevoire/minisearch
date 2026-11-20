@@ -141,6 +141,10 @@ impl Index for Naive {
         docids
     }
 
+    fn database_path() -> &'static str {
+        DB_NAME
+    }
+
     fn clear_database() {
         match std::fs::remove_file(DB_NAME) {
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => (),

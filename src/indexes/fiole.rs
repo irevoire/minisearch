@@ -174,6 +174,10 @@ impl Index for Fiole {
         docids.into_iter().collect()
     }
 
+    fn database_path() -> &'static str {
+        DB_NAME
+    }
+
     fn clear_database() {
         match std::fs::remove_dir_all(DB_NAME) {
             Ok(()) => (),

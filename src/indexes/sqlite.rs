@@ -4,8 +4,10 @@ use rusqlite::{params, params_from_iter, Connection, OptionalExtension};
 
 use crate::{tokenize, DocId, Index};
 
+const DB_NAME: &str = "sqlite.db";
+
 static CONNECTION: LazyLock<Mutex<Connection>> = LazyLock::new(|| {
-    Mutex::new(Connection::open("sqlite.db").expect("Couldn’t init sqlite database"))
+    Mutex::new(Connection::open(DB_NAME).expect("Couldn’t init sqlite database"))
 });
 
 /// Generate the `?, ?, ?` placeholders of an `IN` clause, one for each value to bind.
@@ -147,6 +149,10 @@ impl Index for SQLite {
             .collect();
 
         res
+    }
+
+    fn database_path() -> &'static str {
+        DB_NAME
     }
 
     fn clear_database() {

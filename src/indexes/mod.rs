@@ -6,7 +6,7 @@ mod roaring;
 mod sled;
 mod sqlite;
 
-use std::borrow::Cow;
+use std::{borrow::Cow, io::ErrorKind, path::Path};
 
 pub use self::fiole::Fiole;
 pub use self::heed::Heed;
@@ -34,6 +34,29 @@ pub trait Index: Send + Sync + Default {
     /// Execute a search
     fn search(&self, query: &Query) -> Vec<DocId>;
 
+    /// The path of the on disk database, either a file or a directory
+    fn database_path() -> &'static str;
+
     /// clear the on disk database
     fn clear_database();
+}
+
+/// The size in bytes the database of an index takes on disk, 0 if it doesn't exist.
+pub fn database_size<I: Index>() -> u64 {
+    fn size(path: &Path) -> u64 {
+        let metadata = match std::fs::symlink_metadata(path) {
+            Ok(metadata) => metadata,
+            Err(e) if e.kind() == ErrorKind::NotFound => return 0,
+            Err(e) => panic!("{e}"),
+        };
+        if metadata.is_dir() {
+            std::fs::read_dir(path)
+                .unwrap()
+                .map(|entry| size(&entry.unwrap().path()))
+                .sum()
+        } else {
+            metadata.len()
+        }
+    }
+    size(Path::new(I::database_path()))
 }
