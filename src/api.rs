@@ -23,6 +23,8 @@ pub async fn run<I: RawIndex + 'static>(index: I) {
                 .delete(delete_documents::<I>),
         )
         .route("/search", get(search::<I>))
+        // axum limits the body to 2MB by default, which is too small to send a whole dataset
+        .layer(extract::DefaultBodyLimit::disable())
         .layer(extract::Extension(index));
 
     log::info!("Server started on `http://localhost:3000/`");
