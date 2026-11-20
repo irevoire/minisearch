@@ -1,12 +1,17 @@
 use std::sync::{LazyLock, Mutex};
 
-use rusqlite::{params, Connection};
+use rusqlite::{params, params_from_iter, Connection, OptionalExtension};
 
 use crate::{tokenize, DocId, Index};
 
 static CONNECTION: LazyLock<Mutex<Connection>> = LazyLock::new(|| {
     Mutex::new(Connection::open("sqlite.db").expect("Couldn’t init sqlite database"))
 });
+
+/// Generate the `?, ?, ?` placeholders of an `IN` clause, one for each value to bind.
+fn placeholders(n: usize) -> String {
+    vec!["?"; n].join(", ")
+}
 
 pub struct SQLite {}
 
@@ -44,86 +49,99 @@ impl Index for SQLite {
                     &row.get::<_, Vec<u8>>(0).expect("Error retrieving row"),
                 ))
             })
+            .optional()
             .unwrap()
-            .unwrap();
+            .map(|doc| std::borrow::Cow::Owned(doc.unwrap()));
 
-        Some(std::borrow::Cow::Owned(res))
+        res
     }
 
     fn add_documents(&mut self, documents: Vec<crate::Document>) {
-        let connection = CONNECTION.lock().unwrap();
-        let mut doc_stmt = connection
-            .prepare(
-                r#"
+        let mut connection = CONNECTION.lock().unwrap();
+        // commit the whole batch at once instead of committing every single insert
+        let transaction = connection.transaction().unwrap();
+        {
+            let mut doc_stmt = transaction
+                .prepare(
+                    r#"
             INSERT INTO documents (doc_id, document) VALUES (?, ?)
             ON CONFLICT(doc_id) DO UPDATE SET document = excluded.document;
             "#,
-            )
-            .unwrap();
-        let mut search_stmt = connection
-            .prepare(
-                r#"
+                )
+                .unwrap();
+            let mut search_stmt = transaction
+                .prepare(
+                    r#"
             INSERT INTO document_search (doc_id, word) VALUES (?, ?);
             "#,
-            )
-            .unwrap();
-        let mut del_search_stmt = connection
-            .prepare(
-                r#"
+                )
+                .unwrap();
+            let mut del_search_stmt = transaction
+                .prepare(
+                    r#"
             DELETE FROM document_search WHERE doc_id = ?;
             "#,
-            )
-            .unwrap();
-        for document in &documents {
-            let doc_bytes = serde_json::to_vec(document).expect("Error while serializing document");
-            let doc_id = document.docid();
-            del_search_stmt
-                .execute(params![doc_id])
-                .expect("Error while deleting previous search");
-            doc_stmt
-                .execute(params![doc_id, doc_bytes])
-                .expect("Error while inserting document");
-            document.fields().flat_map(tokenize).for_each(|word| {
-                search_stmt.execute(params![doc_id, word]).unwrap();
-            });
+                )
+                .unwrap();
+            for document in &documents {
+                let doc_bytes =
+                    serde_json::to_vec(document).expect("Error while serializing document");
+                let doc_id = document.docid();
+                del_search_stmt
+                    .execute(params![doc_id])
+                    .expect("Error while deleting previous search");
+                doc_stmt
+                    .execute(params![doc_id, doc_bytes])
+                    .expect("Error while inserting document");
+                document.fields().flat_map(tokenize).for_each(|word| {
+                    search_stmt.execute(params![doc_id, word]).unwrap();
+                });
+            }
         }
+        transaction.commit().unwrap();
     }
 
     fn delete_documents(&mut self, documents: Vec<crate::DocId>) {
+        if documents.is_empty() {
+            return;
+        }
         let connection = CONNECTION.lock().unwrap();
-        let ids = documents
-            .iter()
-            .map(|i| i.to_string())
-            .collect::<Vec<String>>()
-            .join(",");
+        let placeholders = placeholders(documents.len());
         connection
-            .prepare("DELETE FROM document_search WHERE doc_id IN (?);")
+            .prepare(&format!(
+                "DELETE FROM document_search WHERE doc_id IN ({placeholders});"
+            ))
             .unwrap()
-            .execute(params![ids])
+            .execute(params_from_iter(&documents))
             .unwrap();
         connection
-            .prepare("DELETE FORM documents WHERE doc_id IN (?);")
+            .prepare(&format!(
+                "DELETE FROM documents WHERE doc_id IN ({placeholders});"
+            ))
             .unwrap()
-            .execute(params![ids])
+            .execute(params_from_iter(&documents))
             .unwrap();
     }
 
     fn search(&self, query: &crate::Query) -> Vec<DocId> {
-        let words = tokenize(query.q.as_deref().unwrap_or(""))
-            .collect::<Vec<String>>()
-            .join(",");
+        let words = tokenize(query.q.as_deref().unwrap_or("")).collect::<Vec<String>>();
+        if words.is_empty() {
+            return Vec::new();
+        }
 
         let res = CONNECTION
             .lock()
             .unwrap()
-            .prepare(
+            .prepare(&format!(
                 r#"
             SELECT DISTINCT document_search.doc_id FROM document_search
-            WHERE document_search.word IN (?);
+            WHERE document_search.word IN ({})
+            ORDER BY document_search.doc_id;
             "#,
-            )
+                placeholders(words.len())
+            ))
             .unwrap()
-            .query_map(params![words], |row| row.get::<_, u32>(0))
+            .query_map(params_from_iter(&words), |row| row.get::<_, u32>(0))
             .unwrap()
             .map(Result::unwrap)
             .collect();
@@ -132,15 +150,16 @@ impl Index for SQLite {
     }
 
     fn clear_database() {
+        // the tables are recreated when the index is opened with `SQLite::default`
         let connection = CONNECTION.lock().unwrap();
-        match connection.execute("DELETE FROM document_search;", []) {
-            Ok(nb_rows) => println!("document_search has been purged. {} rows deleted", nb_rows),
-            Err(err) => println!("document_search couldn’t be deleted {}", err),
-        }
-        match connection.execute("DELETE FROM documents;", []) {
-            Ok(nb_rows) => println!("documents has been purged. {} rows deleted", nb_rows),
-            Err(err) => println!("documents couldn’t be deleted {}", err),
-        }
+        connection
+            .execute_batch(
+                r#"
+            DROP TABLE IF EXISTS document_search;
+            DROP TABLE IF EXISTS documents;
+            "#,
+            )
+            .expect("Error while clearing the database");
     }
 }
 
@@ -172,6 +191,16 @@ impl Default for SQLite {
             .expect("Error while preparing init query")
             .raw_execute()
             .expect("Error while executing init query");
+        connection
+            .execute_batch(
+                r#"
+            -- used to delete the words of a document without scanning the whole table
+            CREATE INDEX IF NOT EXISTS document_search_doc_id ON document_search (doc_id);
+            -- used by the search, it contains the doc_id so we never need to read the table
+            CREATE INDEX IF NOT EXISTS document_search_word ON document_search (word, doc_id);
+        "#,
+            )
+            .expect("Error while creating the indexes");
         Self {}
     }
 }

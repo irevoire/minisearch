@@ -26,6 +26,9 @@ fn delete_batch_with_shared_word<I: Index>() {
     assert_eq!(search(&index, "hello"), vec![3]);
     assert_eq!(search(&index, "world"), Vec::<u32>::new());
     assert_eq!(search(&index, "bob"), Vec::<u32>::new());
+    assert_eq!(search(&index, "world bob dog"), vec![3]);
+    assert!(index.get_document(1).is_none());
+    assert!(index.get_document(3).is_some());
     I::clear_database();
 }
 
@@ -57,6 +60,12 @@ fn heed() {
 fn sled() {
     delete_batch_with_shared_word::<indexes::Sled>();
     replace_in_batch_with_shared_word::<indexes::Sled>();
+}
+
+#[test]
+fn sqlite() {
+    delete_batch_with_shared_word::<indexes::SQLite>();
+    replace_in_batch_with_shared_word::<indexes::SQLite>();
 }
 
 #[test]

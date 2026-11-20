@@ -10,11 +10,12 @@ pub fn indexing(c: &mut Criterion) {
     g.sample_size(10); // since indexing is so slow we're only going to run 10 iterations
 
     // we can't bench the sqlite implementation because it takes ~10 minutes
-    g.bench_function("naive", |g| bench_index::<indexes::Naive>(g, &dataset));
-    g.bench_function("roaring", |g| bench_index::<indexes::Roaring>(g, &dataset));
-    g.bench_function("sled", |g| bench_index::<indexes::Sled>(g, &dataset));
+    // g.bench_function("naive", |g| bench_index::<indexes::Naive>(g, &dataset));
+    // g.bench_function("roaring", |g| bench_index::<indexes::Roaring>(g, &dataset));
+    // g.bench_function("sled", |g| bench_index::<indexes::Sled>(g, &dataset));
     g.bench_function("heed", |g| bench_index::<indexes::Heed>(g, &dataset));
     g.bench_function("fiole", |g| bench_index::<indexes::Fiole>(g, &dataset));
+    g.bench_function("sqlite", |g| bench_index::<indexes::SQLite>(g, &dataset));
 }
 
 fn bench_index<I: Index>(bencher: &mut Bencher, dataset: &[Document]) {
